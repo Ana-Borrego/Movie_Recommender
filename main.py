@@ -1,8 +1,14 @@
 import pandas as pd
-import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel 
 import json
+
+## Export options ##################
+save_cos_score = True        #######
+save_clean_data = True       #######
+save_model_data = True       #######
+save_movie_indexs = True     #######
+####################################
 
 raw_path = 'data/raw/' # where the data is
 clean_path = 'data/clean/' # to save the preprocessed dataset
@@ -14,9 +20,16 @@ movies = pd.read_csv(raw_path + 'tmdb_5000_movies.csv')
 # Preprocess data
 credits.columns = ['id', 'title', 'cast', 'crew']
 movies_info = movies.merge(credits, on = "id")
+# Delete duplicated columns:
+movies_info.drop(columns = ["title_y", "title_x"], inplace = True)
+movies_info.rename(columns = {"original_title" : "title"}, inplace = True)
+
+# Fill empty data:
 movies_info["overview"] = movies_info["overview"].fillna("")
 
-movies_info.to_csv(clean_path + "tmb_5000_complete.csv", sep = ";", header = True)
+# Export the preprocessed dataframe:
+if save_clean_data:
+    movies_info.to_csv(clean_path + "tmb_5000_cleaned.csv", sep = ";", header = True)
 
 # Strings cannot be fed directly into any machine learning algorithm 
 # so we will first compute Term Frequency- Inverse Document Frequency
@@ -65,6 +78,9 @@ def create_soup(row):
 
 movies_info["soup"] = movies_info.apply(create_soup, axis = 1)
 
+if save_model_data: 
+    movies_info.to_csv(model_path + "tmb_5000_with_soup.csv", sep = ";", header = True)
+
 tfidf = TfidfVectorizer(stop_words = "english")
 tfidf_matrix = tfidf.fit_transform(movies_info["soup"])
 
@@ -81,8 +97,18 @@ tfidf_matrix = tfidf.fit_transform(movies_info["soup"])
 # we are using the TD-IDF Vectorizer, we can calculate it by using the dot product directly. 
 
 cosine_similarities = linear_kernel(tfidf_matrix, tfidf_matrix)
+
+if save_cos_score:
+    cos_score_df = pd.DataFrame(cosine_similarities, index = movies_info["title"],
+        columns= movies_info["title"]) 
+    cos_score_df.to_csv(model_path + "cos_sim_movies.csv", sep = ";", header = True)
+
+
 # Save the reverse map of indexs and movie title for searching the movies in our system recommender solution.
 movie_indexs = pd.Series(movies_info.index, index = movies["title"]).drop_duplicates() 
+
+if save_movie_indexs: 
+    movie_indexs.to_csv(model_path + "tmb_5000_movie_indexs.csv", sep = ";", header = True)
 
 #### MOVIE RECOMMENDER SYSTEM ############################################################
 
@@ -105,7 +131,7 @@ def movie_recommender(target_movie):
 
     top10 = sim_scores[1:11] # ignore the first element (0)
     movies_idx_recommended = [i[0] for i in top10] # index of movies that will be present by the recommender
-    return movies["title"].iloc[movies_idx_recommended]
+    return movies_info["title"].iloc[movies_idx_recommended]
 
 # Test the recommender system: 
 movie_recommender("The Avengers")
