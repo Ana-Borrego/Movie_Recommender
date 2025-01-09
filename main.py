@@ -67,3 +67,56 @@ movies_info["soup"] = movies_info.apply(create_soup, axis = 1)
 
 tfidf = TfidfVectorizer(stop_words = "english")
 tfidf_matrix = tfidf.fit_transform(movies_info["soup"])
+
+# tfidf_matrix.shape == (4803, 23004). 
+# The 4803 movies of our dataset are described by over 23004 words. 
+
+# With this tf-idf matrix, we will now compute a similarity score. 
+# There are several ways to compute similarity such as- using Euclidean distance  or 
+# using the Pearson and the cosine similarity scores. 
+# It is good to experiment with them as it cannot be said beforehand which 
+# would be best- anyone of these can work based on the scenario.
+
+# Calculate the cosine similarity scores by the dot product of normalized vectors, because 
+# we are using the TD-IDF Vectorizer, we can calculate it by using the dot product directly. 
+
+cosine_similarities = linear_kernel(tfidf_matrix, tfidf_matrix)
+# Save the reverse map of indexs and movie title for searching the movies in our system recommender solution.
+movie_indexs = pd.Series(movies_info.index, index = movies["title"]).drop_duplicates() 
+
+#### MOVIE RECOMMENDER SYSTEM ############################################################
+
+# It can be created by following the steps: 
+# 1. Identify the index of the movie in the dataset to work with it. 
+# 2. Calculate the cosine similarity of the objective movie with all movies in the dataset.
+#   2.1. Generate a list of tuples where the first element is the movie index and its similarity score. 
+# 3. Sort the tuple list to get the most similar movies. 
+# 4. Get top 10 similar movies to show, but delete the first element because it refers to the target movie itself.
+# 5. Return the titles that correspond to the indexs of the top elements.
+
+def movie_recommender(target_movie):
+    idx = movie_indexs[target_movie]
+    sim_scores = list(enumerate(cosine_similarities[idx]))
+    # With enumerate we obtain the index of the movie to compare and the score of similarity with the target_movie. 
+    sim_scores = sorted(sim_scores, 
+        key = lambda x: x[1], # sort by the 2nd element (python start on 0 position.)
+        reverse = True
+    )
+
+    top10 = sim_scores[1:11] # ignore the first element (0)
+    movies_idx_recommended = [i[0] for i in top10] # index of movies that will be present by the recommender
+    return movies["title"].iloc[movies_idx_recommended]
+
+# Test the recommender system: 
+movie_recommender("The Avengers")
+# 7                  Avengers: Age of Ultron
+# 511                                  X-Men
+# 242                         Fantastic Four
+# 26              Captain America: Civil War
+# 64                       X-Men: Apocalypse
+# 79                              Iron Man 2
+# 85     Captain America: The Winter Soldier
+# 169     Captain America: The First Avenger
+# 182                                Ant-Man
+# 68                                Iron Man
+# Name: title, dtype: object
